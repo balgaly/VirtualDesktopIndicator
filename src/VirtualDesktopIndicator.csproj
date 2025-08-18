@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    
+    <!-- Assembly Information -->
+    <AssemblyTitle>VirtualDesktopIndicator</AssemblyTitle>
+    <AssemblyDescription>A modern, free alternative to paid virtual desktop tools for Windows</AssemblyDescription>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <AssemblyInformationalVersion>1.0.0</AssemblyInformationalVersion>
+    
+    <!-- Package Information -->
+    <Product>VirtualDesktopIndicator</Product>
+    <Company>Open Source</Company>
+    <Authors>Snir Balgaly</Authors>
+    <Copyright>Copyright © 2025 Snir Balgaly. Developed with assistance from Claude AI (Anthropic).</Copyright>
+    
+    <!-- Repository Information -->
+    <RepositoryUrl>https://github.com/balgaly/VirtualDesktopIndicator</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/balgaly/VirtualDesktopIndicator</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>virtual-desktop;windows;productivity;system-tray;desktop-switcher</PackageTags>
+    
+    <!-- Build Configuration -->
+    <!-- <ApplicationIcon>icon.ico</ApplicationIcon> -->
+    <!-- <ApplicationManifest>app.manifest</ApplicationManifest> -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

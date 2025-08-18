@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    
+    strategy:
+      matrix:
+        configuration: [Debug, Release]
+
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: ⚙️ Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: 📦 Cache dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: 🔄 Restore dependencies
+      run: dotnet restore
+
+    - name: 🔨 Build solution
+      run: dotnet build --configuration ${{ matrix.configuration }} --no-restore --verbosity minimal
+
+    - name: 🧪 Run tests
+      run: dotnet test --configuration ${{ matrix.configuration }} --no-build --verbosity minimal --logger trx --results-directory "TestResults-${{ matrix.configuration }}"
+
+    - name: 📊 Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ matrix.configuration }}
+        path: TestResults-${{ matrix.configuration }}/*.trx
+
+  code-quality:
+    runs-on: windows-latest
+    needs: build-and-test
+
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+
+    - name: ⚙️ Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: 🔄 Restore dependencies
+      run: dotnet restore
+
+    - name: 📝 Run code analysis
+      run: |
+        dotnet build --configuration Release --verbosity minimal /p:TreatWarningsAsErrors=false
+        dotnet format --verbosity normal --verify-no-changes --exclude **/bin/** --exclude **/obj/**
+
+    - name: 📊 Generate coverage report
+      run: |
+        dotnet test --configuration Release --collect:"XPlat Code Coverage" --results-directory ./coverage
+        dotnet tool install -g dotnet-reportgenerator-globaltool
+        reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:"coverage/report" -reporttypes:Html
+
+    - name: 📈 Upload coverage to artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: coverage/report/
