@@ -11,7 +11,6 @@ namespace VirtualDesktopIndicator
         {
             base.OnStartup(e);
             
-            // Hide main window - we only need tray
             if (MainWindow != null)
             {
                 MainWindow.WindowState = WindowState.Minimized;
@@ -19,7 +18,6 @@ namespace VirtualDesktopIndicator
                 MainWindow.Visibility = Visibility.Hidden;
             }
 
-            // Initialize tray service
             _trayService = new TrayService();
             _trayService.Initialize();
         }

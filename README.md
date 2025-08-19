@@ -63,20 +63,85 @@
 
 ## 💾 Installation
 
+### 🎯 Choose Your Installation Method
+
+| Method | Best For | Pros | Cons |
+|--------|----------|------|------|
+| 🚀 **Portable** | Most users | No installation, no dependencies | Larger download (~25MB) |
+| 📦 **Winget** | Power users | Auto-updates, easy management | Requires Windows Package Manager |
+| 🔧 **Framework** | Developers | Smaller download (~2MB) | Requires .NET 8 Runtime |
+
+---
+
 ### 🚀 Option 1: Portable (Recommended)
-1. **Download** the latest `VirtualDesktopIndicator-vX.X.X-win-x64-portable.zip` from [Releases](https://github.com/balgaly/VirtualDesktopIndicator/releases/latest)
+**Best for**: Most users who want zero hassle
+
+1. **Download** the latest release:
+   ```
+   https://github.com/balgaly/VirtualDesktopIndicator/releases/latest/download/VirtualDesktopIndicator-v1.0.0-win-x64-portable.zip
+   ```
 2. **Extract** to your preferred location (e.g., `C:\Tools\VirtualDesktopIndicator\`)
 3. **Run** `VirtualDesktopIndicator.exe`
-4. **Enjoy!** The app will appear in your system tray
+4. **Optional**: Pin to taskbar or add to startup folder
 
-✅ **No installation required** • ✅ **No .NET Runtime needed** • ✅ **Single executable**
+✅ **No installation required** • ✅ **No .NET Runtime needed** • ✅ **Single executable** • ✅ **Works offline**
 
-### 🔧 Option 2: Framework-Dependent
+---
+
+### 📦 Option 2: Windows Package Manager (Winget)
+**Best for**: Users who want automatic updates and easy management
+
+```powershell
+# Install VirtualDesktopIndicator
+winget install VirtualDesktopIndicator
+
+# Or specify the full package ID
+winget install balgaly.VirtualDesktopIndicator
+```
+
+**Update to latest version:**
+```powershell
+winget upgrade VirtualDesktopIndicator
+```
+
+**Uninstall:**
+```powershell
+winget uninstall VirtualDesktopIndicator
+```
+
+✅ **Automatic updates** • ✅ **Easy management** • ✅ **No manual downloads** • ✅ **System integration**
+
+---
+
+### 🔧 Option 3: Framework-Dependent
+**Best for**: Developers and users who already have .NET 8 installed
+
+**Prerequisites:**
 1. **Install** [.NET 8 Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) if not already installed
-2. **Download** `VirtualDesktopIndicator-vX.X.X-win-x64-framework-dependent.zip`  
+
+**Download & Run:**
+2. **Download** the framework-dependent version:
+   ```
+   https://github.com/balgaly/VirtualDesktopIndicator/releases/latest/download/VirtualDesktopIndicator-v1.0.0-win-x64-framework-dependent.zip
+   ```
 3. **Extract** and run `VirtualDesktopIndicator.exe`
 
-💡 **Smaller download** • ⚠️ **Requires .NET 8 Runtime**
+💡 **Smaller download** • ⚠️ **Requires .NET 8 Runtime** • 🔄 **Shared dependencies**
+
+---
+
+### 🔐 Verify Download Integrity
+
+For security, verify your download using SHA256 checksums:
+
+```powershell
+# PowerShell - Check file hash
+Get-FileHash -Algorithm SHA256 "VirtualDesktopIndicator-v1.0.0-win-x64-portable.zip"
+
+# Compare with published checksums in release notes
+```
+
+**Official checksums** are provided in each [GitHub release](https://github.com/balgaly/VirtualDesktopIndicator/releases/latest).
 
 ---
 

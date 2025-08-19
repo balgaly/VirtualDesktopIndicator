@@ -327,3 +327,6 @@ Desktop.ini
 # Claude AI development context - do not upload to GitHub
 .claude/
 **/.claude/
+
+# Winget package manifests - submit separately to microsoft/winget-pkgs
+.winget/

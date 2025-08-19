@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved project organization with src/ and tests/ directories
 - Enhanced README with badges, installation instructions, and comprehensive documentation
 
-## [1.0.0] - 2025-01-XX
+## [1.0.0] - 2025-01-18
 
 ### Added
 - 🎯 **System Tray Integration** - Clean, modern tray icon showing current desktop number

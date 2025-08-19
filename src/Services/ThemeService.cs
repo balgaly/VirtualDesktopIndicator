@@ -19,13 +19,10 @@ namespace VirtualDesktopIndicator.Services
                 using var key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize");
                 var value = key?.GetValue("AppsUseLightTheme");
                 
-                // If AppsUseLightTheme is 0, it means dark theme is enabled
-                // If AppsUseLightTheme is 1, it means light theme is enabled
                 return value != null && (int)value == 0;
             }
             catch
             {
-                // Default to light theme if detection fails
                 return false;
             }
         }

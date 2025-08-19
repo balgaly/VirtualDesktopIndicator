@@ -1,5 +1,4 @@
 using Xunit;
-using FluentAssertions;
 using VirtualDesktopIndicator.Services;
 using Moq;
 using System;
@@ -21,31 +20,30 @@ namespace VirtualDesktopIndicator.Tests.Services
         public void Constructor_WithValidDesktopService_ShouldNotThrow()
         {
             // Act & Assert
-            var action = () => new HotkeyService(_mockDesktopService.Object);
-            action.Should().NotThrow();
+            var exception = Record.Exception(() => new HotkeyService(_mockDesktopService.Object));
+            Assert.Null(exception);
         }
 
         [Fact]
         public void Constructor_WithNullDesktopService_ShouldThrow()
         {
             // Act & Assert
-            var action = () => new HotkeyService(null!);
-            action.Should().Throw<ArgumentNullException>();
+            Assert.Throws<ArgumentNullException>(() => new HotkeyService(null!));
         }
 
         [Fact]
         public void Dispose_ShouldNotThrow()
         {
             // Act & Assert
-            var action = () => _hotkeyService.Dispose();
-            action.Should().NotThrow();
+            var exception = Record.Exception(() => _hotkeyService.Dispose());
+            Assert.Null(exception);
         }
 
         [Fact]
         public void HotkeyService_ShouldImplementIDisposable()
         {
             // Assert
-            _hotkeyService.Should().BeAssignableTo<IDisposable>();
+            Assert.IsAssignableFrom<IDisposable>(_hotkeyService);
         }
 
         public void Dispose()

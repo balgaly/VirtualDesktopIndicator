@@ -17,14 +17,12 @@ namespace VirtualDesktopIndicator.Services
         private readonly VirtualDesktopService _desktopService;
         private bool _disposed = false;
 
-        // Hotkey IDs
         private const int HOTKEY_NEXT_DESKTOP = 1;
 
         public HotkeyService(VirtualDesktopService desktopService)
         {
-            _desktopService = desktopService;
+            _desktopService = desktopService ?? throw new ArgumentNullException(nameof(desktopService));
             
-            // Create a hidden window to receive hotkey messages
             var hiddenWindow = new HiddenWindow();
             _windowHandle = hiddenWindow.Handle;
             hiddenWindow.HotkeyPressed += OnHotkeyPressed;
@@ -36,12 +34,10 @@ namespace VirtualDesktopIndicator.Services
         {
             try
             {
-                // Alt + Tab alternative: Alt + ` (backtick) for next desktop
                 // SECURITY: Check Win32 API return value for proper error handling
                 bool success = RegisterHotKey(_windowHandle, HOTKEY_NEXT_DESKTOP, MOD_ALT, (int)Keys.Oemtilde);
                 if (!success)
                 {
-                    // Get the last Win32 error for detailed diagnostics
                     int errorCode = Marshal.GetLastWin32Error();
                     string errorMessage = errorCode switch
                     {

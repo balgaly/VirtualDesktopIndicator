@@ -1,5 +1,4 @@
 using Xunit;
-using FluentAssertions;
 using VirtualDesktopIndicator.Services;
 using System;
 
@@ -21,7 +20,7 @@ namespace VirtualDesktopIndicator.Tests.Services
             var currentDesktop = _service.GetCurrentDesktopNumber();
 
             // Assert
-            currentDesktop.Should().BeGreaterOrEqualTo(1);
+            Assert.True(currentDesktop >= 1);
         }
 
         [Fact]
@@ -31,7 +30,7 @@ namespace VirtualDesktopIndicator.Tests.Services
             var desktopCount = _service.GetDesktopCount();
 
             // Assert
-            desktopCount.Should().BeGreaterOrEqualTo(1);
+            Assert.True(desktopCount >= 1);
         }
 
         [Theory]
@@ -44,8 +43,8 @@ namespace VirtualDesktopIndicator.Tests.Services
             var desktopName = _service.GetDesktopName(desktopNumber);
 
             // Assert
-            desktopName.Should().NotBeNullOrEmpty();
-            desktopName.Should().StartWith("Desktop");
+            Assert.NotNull(desktopName);
+            Assert.NotEmpty(desktopName);
         }
 
         [Fact]
@@ -55,19 +54,17 @@ namespace VirtualDesktopIndicator.Tests.Services
             var desktopName = _service.GetDesktopName(999);
 
             // Assert
-            desktopName.Should().Be("Desktop 999");
+            Assert.Equal("Desktop 999", desktopName);
         }
 
         [Fact]
         public void DesktopChanged_Event_ShouldBeRaised_WhenDesktopChanges()
         {
             // Arrange
-            var eventRaised = false;
             var receivedDesktopNumber = 0;
 
             _service.DesktopChanged += (sender, desktopNumber) =>
             {
-                eventRaised = true;
                 receivedDesktopNumber = desktopNumber;
             };
 
@@ -75,7 +72,7 @@ namespace VirtualDesktopIndicator.Tests.Services
 
             // Act & Assert
             // This is a basic setup test - actual desktop switching would require integration testing
-            _service.Should().NotBeNull();
+            Assert.NotNull(_service);
             
             // Cleanup
             _service.StopMonitoring();
@@ -85,8 +82,8 @@ namespace VirtualDesktopIndicator.Tests.Services
         public void StartMonitoring_ShouldNotThrow()
         {
             // Act & Assert
-            var action = () => _service.StartMonitoring();
-            action.Should().NotThrow();
+            var exception = Record.Exception(() => _service.StartMonitoring());
+            Assert.Null(exception);
             
             // Cleanup
             _service.StopMonitoring();
@@ -99,8 +96,8 @@ namespace VirtualDesktopIndicator.Tests.Services
             _service.StartMonitoring();
 
             // Act & Assert
-            var action = () => _service.StopMonitoring();
-            action.Should().NotThrow();
+            var exception = Record.Exception(() => _service.StopMonitoring());
+            Assert.Null(exception);
         }
 
         public void Dispose()

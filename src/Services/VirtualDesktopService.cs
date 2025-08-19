@@ -42,16 +42,13 @@ namespace VirtualDesktopIndicator.Services
         {
             try
             {
-                // Get current desktop using registry approach
                 var (current, count) = GetDesktopInfoFromRegistry();
                 
-                // If registry approach fails, use alternative method
                 if (current == 0 || count == 0)
                 {
-                    (current, count) = GetDesktopInfoFromTaskView();
+                    (current, count) = (1, 1); // Safe fallback - assume single desktop
                 }
 
-                // Update desktop names
                 UpdateDesktopNames(count);
 
                 bool desktopChanged = current != _currentDesktop;
@@ -87,7 +84,6 @@ namespace VirtualDesktopIndicator.Services
                     return (1, 1);
                 }
 
-                // Get all desktop IDs first
                 var allDesktopsData = key.GetValue("VirtualDesktopIDs") as byte[];
                 if (allDesktopsData == null) 
                 {
@@ -95,10 +91,9 @@ namespace VirtualDesktopIndicator.Services
                     return (1, 1);
                 }
 
-                var desktopCount = allDesktopsData.Length / 16; // Each GUID is 16 bytes
+                var desktopCount = allDesktopsData.Length / 16;
                 Debug.WriteLine($"Found {desktopCount} desktops in registry");
 
-                // Get current desktop ID
                 var currentDesktopData = key.GetValue("CurrentVirtualDesktop") as byte[];
                 if (currentDesktopData == null) 
                 {
@@ -109,7 +104,6 @@ namespace VirtualDesktopIndicator.Services
                 var currentDesktopGuid = new Guid(currentDesktopData);
                 DebugLogger.WriteSecurityInfo($"Current desktop GUID detected");
 
-                // Find the index of current desktop
                 var currentDesktopIndex = 1;
                 for (int i = 0; i < desktopCount; i++)
                 {
@@ -136,92 +130,12 @@ namespace VirtualDesktopIndicator.Services
             }
         }
 
-        private (int current, int count) GetDesktopInfoFromTaskView()
-        {
-            try
-            {
-                // Use PowerShell to get virtual desktop info
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = "powershell.exe",
-                    Arguments = @"-Command ""
-                        $source = @'
-                        using System;
-                        using System.Runtime.InteropServices;
-                        public class VirtualDesktopHelper {
-                            [DllImport(""user32.dll"")]
-                            public static extern IntPtr GetForegroundWindow();
-                        }
-'@
-                        Add-Type -TypeDefinition $source
-                        
-                        # Try to get desktop count using Task View registry
-                        try {
-                            $vdKey = Get-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VirtualDesktops' -ErrorAction SilentlyContinue
-                            if ($vdKey -and $vdKey.VirtualDesktopIDs) {
-                                $count = [math]::Floor($vdKey.VirtualDesktopIDs.Length / 16)
-                                if ($vdKey.CurrentVirtualDesktop) {
-                                    $currentGuid = [System.Guid]::new($vdKey.CurrentVirtualDesktop)
-                                    $current = 1
-                                    for ($i = 0; $i -lt $count; $i++) {
-                                        $guidBytes = $vdKey.VirtualDesktopIDs[($i * 16)..(($i + 1) * 16 - 1)]
-                                        $guid = [System.Guid]::new($guidBytes)
-                                        if ($guid -eq $currentGuid) {
-                                            $current = $i + 1
-                                            break
-                                        }
-                                    }
-                                    Write-Output ""$current,$count""
-                                } else {
-                                    Write-Output ""1,$count""
-                                }
-                            } else {
-                                Write-Output ""1,1""
-                            }
-                        } catch {
-                            Write-Output ""1,1""
-                        }
-                    """,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    CreateNoWindow = true,
-                    WindowStyle = ProcessWindowStyle.Hidden
-                };
-
-                using var process = Process.Start(startInfo);
-                if (process != null)
-                {
-                    var output = process.StandardOutput.ReadToEnd().Trim();
-                    process.WaitForExit(5000); // 5 second timeout
-
-                    if (!string.IsNullOrEmpty(output) && output.Contains(","))
-                    {
-                        var parts = output.Split(',');
-                        if (parts.Length == 2 && 
-                            int.TryParse(parts[0], out int current) && 
-                            int.TryParse(parts[1], out int count))
-                        {
-                            return (current, count);
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"PowerShell method failed: {ex.Message}");
-            }
-
-            return (1, 1); // Fallback
-        }
 
         private void UpdateDesktopNames(int desktopCount)
         {
             try
             {
-                // Clear existing names
                 _desktopNames.Clear();
-
-                // Get desktop GUIDs from registry
                 using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VirtualDesktops");
                 var allDesktopsData = key?.GetValue("VirtualDesktopIDs") as byte[];
                 
@@ -229,7 +143,6 @@ namespace VirtualDesktopIndicator.Services
                 {
                     Debug.WriteLine("Getting desktop names from Desktops subkey");
                     
-                    // For each desktop, get its GUID and look up the name
                     for (int i = 0; i < desktopCount; i++)
                     {
                         var guidBytes = new byte[16];
@@ -238,7 +151,6 @@ namespace VirtualDesktopIndicator.Services
                         
                         Debug.WriteLine($"Looking up name for desktop {i + 1} with GUID: {guid}");
                         
-                        // Look for custom name in Desktops subkey
                         using var desktopKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey($@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VirtualDesktops\Desktops\{{{guid}}}");
                         if (desktopKey?.GetValue("Name") is string customName && !string.IsNullOrWhiteSpace(customName))
                         {
@@ -255,7 +167,6 @@ namespace VirtualDesktopIndicator.Services
                 else
                 {
                     Debug.WriteLine("Could not get desktop GUIDs, using default names");
-                    // Fallback: create default names
                     for (int i = 1; i <= desktopCount; i++)
                     {
                         _desktopNames[i] = $"Desktop {i}";
@@ -268,7 +179,6 @@ namespace VirtualDesktopIndicator.Services
             {
                 Debug.WriteLine($"Error updating desktop names: {ex.Message}");
                 
-                // Fallback: create default names
                 _desktopNames.Clear();
                 for (int i = 1; i <= desktopCount; i++)
                 {
@@ -290,7 +200,6 @@ namespace VirtualDesktopIndicator.Services
 
                 Debug.WriteLine($"Switching to desktop {desktopNumber}");
 
-                // Try direct COM API approach first
                 if (TrySwitchViaComApi(desktopNumber))
                 {
                     Debug.WriteLine("Successfully switched via COM API");
@@ -298,7 +207,6 @@ namespace VirtualDesktopIndicator.Services
                 else
                 {
                     Debug.WriteLine("COM API failed, trying hotkeys");
-                    // Fallback to keyboard shortcuts
                     if (desktopNumber <= 9)
                     {
                         SendWinKey($"^({{WIN}}){desktopNumber}");
@@ -309,7 +217,6 @@ namespace VirtualDesktopIndicator.Services
                     }
                 }
 
-                // Give Windows time to switch, then update
                 System.Threading.Tasks.Task.Delay(200).ContinueWith(t => 
                 {
                     System.Windows.Application.Current.Dispatcher.Invoke(() => UpdateDesktopInfo());
@@ -325,7 +232,6 @@ namespace VirtualDesktopIndicator.Services
         {
             try
             {
-                // Try to use Windows 10/11 internal COM API for virtual desktops
                 var shellType = Type.GetTypeFromProgID("Shell.Application");
                 if (shellType != null)
                 {
@@ -334,8 +240,6 @@ namespace VirtualDesktopIndicator.Services
                     if (shellObject != null)
                     {
                         dynamic shell = shellObject;
-                        
-                        // Try to invoke the desktop switching through Shell
                         shell?.WindowsSwitchToDesktop?.Invoke(desktopNumber - 1);
                         return true;
                     }
@@ -398,7 +302,6 @@ namespace VirtualDesktopIndicator.Services
             {
                 Debug.WriteLine($"Sending keys: {keys}");
                 
-                // Alternative method using keybd_event API for more reliable key sending
                 if (keys.Contains("WIN"))
                 {
                     SendVirtualDesktopHotkey(keys);
@@ -408,7 +311,7 @@ namespace VirtualDesktopIndicator.Services
                     System.Windows.Forms.SendKeys.Send(keys);
                 }
                 
-                System.Threading.Thread.Sleep(100); // Give more time for key processing
+                System.Threading.Thread.Sleep(100);
             }
             catch (Exception ex)
             {
@@ -422,24 +325,19 @@ namespace VirtualDesktopIndicator.Services
             {
                 Debug.WriteLine($"SendVirtualDesktopHotkey called with: {keys}");
                 
-                // Run the key sending in a background thread to avoid UI blocking
                 System.Threading.Tasks.Task.Run(() => {
                     try
                     {
-                        // Make sure we have focus before sending keys
                         System.Threading.Thread.Sleep(50);
                         
                         Debug.WriteLine("Sending key sequence...");
                         
-                        // Press Win key
                         keybd_event(VK_LWIN, 0, 0, UIntPtr.Zero);
                         
-                        // Press Ctrl key  
                         keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero);
                         
                         System.Threading.Thread.Sleep(20);
                         
-                        // Determine which additional key to press
                         if (keys.Contains("RIGHT"))
                         {
                             Debug.WriteLine("Sending RIGHT key");
@@ -456,7 +354,6 @@ namespace VirtualDesktopIndicator.Services
                         }
                         else
                         {
-                            // Extract number from keys string for direct desktop switching
                             var numberChar = keys.Where(char.IsDigit).FirstOrDefault();
                             if (numberChar != '\0')
                             {
@@ -470,10 +367,8 @@ namespace VirtualDesktopIndicator.Services
                         
                         System.Threading.Thread.Sleep(20);
                         
-                        // Release Ctrl key
                         keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
                         
-                        // Release Win key
                         keybd_event(VK_LWIN, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
                         
                         Debug.WriteLine("Successfully sent virtual desktop hotkey");
@@ -509,31 +404,24 @@ namespace VirtualDesktopIndicator.Services
                 // Ctrl down  
                 keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero);
 
-                // Small delay to ensure keys register
                 System.Threading.Thread.Sleep(20);
-
-                // Number key (handle desktop 10 as 0)
                 byte numberKey;
                 if (desktopNumber == 10)
                 {
-                    numberKey = VK_0; // '0' key for desktop 10
+                    numberKey = VK_0;
                 }
                 else
                 {
-                    numberKey = (byte)(VK_1 + desktopNumber - 1); // '1'-'9' keys for desktops 1-9
+                    numberKey = (byte)(VK_1 + desktopNumber - 1);
                 }
 
-                // Number down
                 keybd_event(numberKey, 0, 0, UIntPtr.Zero);
-                System.Threading.Thread.Sleep(50); // Ensure key registers
-                // Number up
+                System.Threading.Thread.Sleep(50);
                 keybd_event(numberKey, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
 
                 System.Threading.Thread.Sleep(20);
 
-                // Ctrl up
                 keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
-                // Win up
                 keybd_event(VK_LWIN, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
 
                 Debug.WriteLine("Direct Win32 API switching completed");
@@ -546,7 +434,6 @@ namespace VirtualDesktopIndicator.Services
             }
         }
 
-        // Windows API constants and imports
         private const byte VK_LWIN = 0x5B;
         private const byte VK_CONTROL = 0x11;
         private const byte VK_LEFT = 0x25;
@@ -562,7 +449,7 @@ namespace VirtualDesktopIndicator.Services
         {
             _monitorTimer = new System.Windows.Threading.DispatcherTimer
             {
-                Interval = TimeSpan.FromMilliseconds(250) // Check 4 times per second for responsiveness
+                Interval = TimeSpan.FromMilliseconds(250)
             };
             
             _monitorTimer.Tick += (s, e) => UpdateDesktopInfo();
