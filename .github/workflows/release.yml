@@ -31,19 +31,19 @@ jobs:
 
     - name: Publish Portable (win-x64)
       run: |
-        dotnet publish src/VirtualDesktopIndicator.csproj \
-          --configuration Release \
-          --runtime win-x64 \
-          --self-contained true \
-          --output ./publish/portable \
+        dotnet publish src/VirtualDesktopIndicator.csproj `
+          --configuration Release `
+          --runtime win-x64 `
+          --self-contained true `
+          --output ./publish/portable `
           -p:PublishSingleFile=true
 
     - name: Publish Framework-Dependent
       run: |
-        dotnet publish src/VirtualDesktopIndicator.csproj \
-          --configuration Release \
-          --runtime win-x64 \
-          --self-contained false \
+        dotnet publish src/VirtualDesktopIndicator.csproj `
+          --configuration Release `
+          --runtime win-x64 `
+          --self-contained false `
           --output ./publish/framework-dependent
 
     - name: Create Release Archives
