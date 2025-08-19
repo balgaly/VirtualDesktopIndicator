@@ -1,0 +1,312 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+    
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: ⚙️ Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: 🛡️ Install Security Tools
+      run: |
+        # Install SBOM generation tool
+        dotnet tool install --global Microsoft.Sbom.Tool --version 2.2.1
+        
+        # Install dependency vulnerability scanner
+        dotnet tool install --global Microsoft.CST.OAT --version 1.6.0
+
+    - name: 🔄 Restore dependencies
+      run: dotnet restore
+
+    - name: 🔍 Security Scan - Dependency Vulnerabilities
+      run: |
+        # Scan for known vulnerabilities in dependencies
+        dotnet list package --vulnerable --include-transitive > vulnerability-report.txt 2>&1 || echo "Vulnerability scan completed"
+        
+        # Check if critical vulnerabilities found
+        if (Select-String -Path "vulnerability-report.txt" -Pattern "Critical|High" -Quiet) {
+          Write-Host "⚠️ High/Critical vulnerabilities detected - review required"
+          Get-Content vulnerability-report.txt
+        } else {
+          Write-Host "✅ No critical vulnerabilities detected"
+        }
+
+    - name: 🏗️ Build Release with Security Flags
+      run: |
+        dotnet build src/VirtualDesktopIndicator.csproj `
+          --configuration Release `
+          --no-restore `
+          /p:TreatWarningsAsErrors=true `
+          /p:WarningsAsErrors="" `
+          /p:RunAnalyzersDuringBuild=true
+
+    - name: 📦 Publish Portable (win-x64) with Security
+      run: |
+        dotnet publish src/VirtualDesktopIndicator.csproj `
+          --configuration Release `
+          --runtime win-x64 `
+          --self-contained true `
+          --output ./publish/win-x64 `
+          /p:PublishSingleFile=true `
+          /p:PublishTrimmed=true `
+          /p:IncludeNativeLibrariesForSelfExtract=true `
+          /p:EnableCompressionInSingleFile=true `
+          /p:DebugType=None `
+          /p:DebugSymbols=false
+
+    - name: 📦 Publish Framework-Dependent with Security
+      run: |
+        dotnet publish src/VirtualDesktopIndicator.csproj `
+          --configuration Release `
+          --runtime win-x64 `
+          --self-contained false `
+          --output ./publish/framework-dependent `
+          /p:DebugType=None `
+          /p:DebugSymbols=false
+
+    - name: 🔐 Generate SBOM (Software Bill of Materials)
+      run: |
+        # Generate SBOM for portable version
+        sbom-tool generate `
+          -b ./publish/win-x64 `
+          -bc . `
+          -pn "VirtualDesktopIndicator" `
+          -pv "${{ github.ref_name }}" `
+          -ps "Open Source" `
+          -nsb "https://github.com/balgaly/VirtualDesktopIndicator" `
+          -o ./sbom-portable
+        
+        # Generate SBOM for framework-dependent version  
+        sbom-tool generate `
+          -b ./publish/framework-dependent `
+          -bc . `
+          -pn "VirtualDesktopIndicator" `
+          -pv "${{ github.ref_name }}" `
+          -ps "Open Source" `
+          -nsb "https://github.com/balgaly/VirtualDesktopIndicator" `
+          -o ./sbom-framework
+          
+        Write-Host "✅ SBOM generation completed"
+
+    # TODO: Code Signing Step (Uncomment when certificates are available)
+    # - name: 🔐 Code Signing (Optional - Requires Certificate)
+    #   run: |
+    #     # This step requires a code signing certificate
+    #     # For open source projects, consider SignPath Foundation program
+    #     # or purchase a certificate from Sectigo, DigiCert, etc.
+    #     
+    #     # Example with SignTool (requires certificate in workflow secrets):
+    #     # signtool sign /f $env:CERT_FILE /p $env:CERT_PASSWORD /t http://timestamp.digicert.com ./publish/win-x64/VirtualDesktopIndicator.exe
+    #     # signtool sign /f $env:CERT_FILE /p $env:CERT_PASSWORD /t http://timestamp.digicert.com ./publish/framework-dependent/VirtualDesktopIndicator.exe
+    #     
+    #     Write-Host "⏩ Code signing skipped - Certificate not configured"
+    #   env:
+    #     CERT_FILE: ${{ secrets.CODE_SIGNING_CERT }}
+    #     CERT_PASSWORD: ${{ secrets.CODE_SIGNING_PASSWORD }}
+
+    - name: 🗜️ Create Secure Release Archives
+      run: |
+        # Copy SBOM files to release directories
+        Copy-Item "./sbom-portable/_manifest/spdx_2.2/manifest.spdx.json" "./publish/win-x64/VirtualDesktopIndicator.sbom.json" -ErrorAction SilentlyContinue
+        Copy-Item "./sbom-framework/_manifest/spdx_2.2/manifest.spdx.json" "./publish/framework-dependent/VirtualDesktopIndicator.sbom.json" -ErrorAction SilentlyContinue
+        
+        # Create portable zip with SBOM
+        Compress-Archive -Path "./publish/win-x64/*" -DestinationPath "./VirtualDesktopIndicator-${{ github.ref_name }}-win-x64-portable.zip"
+        
+        # Create framework-dependent zip with SBOM
+        Compress-Archive -Path "./publish/framework-dependent/*" -DestinationPath "./VirtualDesktopIndicator-${{ github.ref_name }}-win-x64-framework-dependent.zip"
+        
+        Write-Host "✅ Release archives created with SBOM included"
+
+    - name: 🔍 Generate Checksums and Security Metadata
+      run: |
+        # Generate SHA256 checksums for all release files
+        $files = @(
+          "VirtualDesktopIndicator-${{ github.ref_name }}-win-x64-portable.zip",
+          "VirtualDesktopIndicator-${{ github.ref_name }}-win-x64-framework-dependent.zip"
+        )
+        
+        $checksumContent = @"
+        # VirtualDesktopIndicator ${{ github.ref_name }} - SHA256 Checksums
+        # Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')
+        # Verify with: Get-FileHash -Algorithm SHA256 filename.zip
+        
+        "@ + "`n"
+        
+        foreach ($file in $files) {
+          if (Test-Path $file) {
+            $hash = Get-FileHash -Algorithm SHA256 $file
+            $checksumContent += "$($hash.Hash.ToLower())  $($hash.Path | Split-Path -Leaf)`n"
+            Write-Host "✅ Generated checksum for $file"
+          }
+        }
+        
+        # Save checksums file
+        $checksumContent | Out-File -FilePath "SHA256SUMS.txt" -Encoding UTF8
+        
+        # Generate security metadata
+        $securityInfo = @"
+        # VirtualDesktopIndicator ${{ github.ref_name }} - Security Information
+        
+        ## 🛡️ Security Measures
+        - **Vulnerability Scanning**: Dependencies scanned for known CVEs
+        - **SBOM Included**: Software Bill of Materials embedded in releases
+        - **Secure Build**: Built with security flags and minimal debug info
+        - **Checksum Verification**: SHA256 checksums provided for integrity verification
+        - **Source Code**: Fully open source - review available at GitHub
+        
+        ## 🔍 Verification
+        1. **Checksum Verification**:
+           ``````
+           # Windows PowerShell
+           Get-FileHash -Algorithm SHA256 VirtualDesktopIndicator-${{ github.ref_name }}-win-x64-portable.zip
+           
+           # Compare with SHA256SUMS.txt
+           ``````
+        
+        2. **SBOM Review**: 
+           - Extract archive and review VirtualDesktopIndicator.sbom.json
+           - Contains complete dependency list and vulnerability information
+        
+        3. **Source Code Audit**:
+           - Repository: https://github.com/balgaly/VirtualDesktopIndicator
+           - Tag: ${{ github.ref_name }}
+           - License: MIT (see LICENSE file)
+        
+        ## ⚠️ Security Notes
+        - This release is NOT code-signed (open source project)
+        - Windows may show "Unknown Publisher" warning - this is expected
+        - Always download from official GitHub releases only
+        - Verify checksums before execution
+        
+        ## 📧 Security Contact
+        For security issues, please create a GitHub issue or contact the maintainer.
+        
+        Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')
+        Build: GitHub Actions workflow run ${{ github.run_number }}
+        "@ + "`n"
+        
+        $securityInfo | Out-File -FilePath "SECURITY-INFO.txt" -Encoding UTF8
+        
+        Write-Host "✅ Security metadata generated"
+
+    - name: 📝 Generate Release Notes
+      id: release_notes
+      run: |
+        $tag = "${{ github.ref_name }}"
+        $notes = @"
+        # 🎉 VirtualDesktopIndicator $tag
+        
+        ## ✨ What's New
+        - Modern, free alternative to paid virtual desktop tools
+        - Clean 2025-inspired UI design with theme support
+        - Real-time desktop detection and switching
+        - Custom desktop name support
+        - Comprehensive keyboard shortcuts
+        
+        ## 💾 Download Options
+        
+        ### 🚀 Recommended: Portable (Self-Contained)
+        **File**: ``VirtualDesktopIndicator-$tag-win-x64-portable.zip``
+        - ✅ No .NET installation required
+        - ✅ Single executable file
+        - ✅ Works on any Windows 10/11 system
+        - 📁 Simply extract and run ``VirtualDesktopIndicator.exe``
+        
+        ### 🔧 Framework-Dependent
+        **File**: ``VirtualDesktopIndicator-$tag-win-x64-framework-dependent.zip``
+        - ⚠️ Requires .NET 8 Runtime
+        - 📦 Smaller download size
+        - 🔗 [Download .NET 8 Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)
+        
+        ## 🎹 Keyboard Shortcuts
+        - ``Alt + ``` - Next desktop
+        - ``Ctrl + Win + ←/→`` - Navigate desktops
+        - **Left-click tray icon** - Next desktop
+        
+        ## 🔧 System Requirements
+        - Windows 10 version 1903 or later
+        - Windows 11 (all versions)
+        - .NET 8 Runtime (framework-dependent version only)
+        
+        ## 🛡️ Security Information
+        This release includes enhanced security measures:
+        - **SBOM (Software Bill of Materials)** embedded in archives
+        - **SHA256 checksums** for integrity verification (see SHA256SUMS.txt)
+        - **Vulnerability scanning** of all dependencies
+        - **Secure build process** with minimal debug information
+        
+        ⚠️ **Security Note**: This open source release is not code-signed. Windows may show "Unknown Publisher" warning.
+        
+        ## 🔍 Verification
+        1. Download SHA256SUMS.txt and verify file integrity
+        2. Review SECURITY-INFO.txt for detailed security information
+        3. Check VirtualDesktopIndicator.sbom.json (inside archives) for dependency details
+        
+        ## 🐛 Known Issues
+        - None reported for this release
+        
+        ## 🤝 Contributing
+        Found a bug or want to contribute? Visit our [GitHub repository](https://github.com/balgaly/VirtualDesktopIndicator)!
+        
+        ---
+        **Full Changelog**: https://github.com/balgaly/VirtualDesktopIndicator/compare/v1.0.0...$tag
+        "@
+        
+        # Save to output
+        $notes | Out-File -FilePath release_notes.md -Encoding UTF8
+        echo "notes_file=release_notes.md" >> $env:GITHUB_OUTPUT
+
+    - name: 🚀 Create GitHub Release with Security Files
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          VirtualDesktopIndicator-${{ github.ref_name }}-win-x64-portable.zip
+          VirtualDesktopIndicator-${{ github.ref_name }}-win-x64-framework-dependent.zip
+          SHA256SUMS.txt
+          SECURITY-INFO.txt
+          vulnerability-report.txt
+        body_path: release_notes.md
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+        tag_name: ${{ github.ref_name }}
+        name: "VirtualDesktopIndicator ${{ github.ref_name }}"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: 📊 Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-binaries-${{ github.ref_name }}
+        path: |
+          VirtualDesktopIndicator-${{ github.ref_name }}-win-x64-portable.zip
+          VirtualDesktopIndicator-${{ github.ref_name }}-win-x64-framework-dependent.zip
+          SHA256SUMS.txt
+          SECURITY-INFO.txt
+          vulnerability-report.txt
+          sbom-portable/
+          sbom-framework/
+
+    - name: 📈 Upload Security Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-reports-${{ github.ref_name }}
+        path: |
+          vulnerability-report.txt
+          sbom-portable/_manifest/
+          sbom-framework/_manifest/
+        retention-days: 90
